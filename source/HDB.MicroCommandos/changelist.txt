@@ -1,0 +1,65 @@
+MCHD.EXE
+* NOCD Patch (grummc based)
+* New Filenames for GUI related files (compatibility for original game when not using HDBEEFUP tweaks)
+\ List:
+Pannels\menuprincipal.Ini
+Pannels\menusave.ini
+Pannels\menucredits.ini
+Pannels\menuload.ini
+Pannels\MENUMISSIONBRIEF.ini
+Pannels\menuoptions.ini
+Pannels\MENUPLAYERS.ini
+Pannels\cartemission1.Ini
+Pannels\cartemission2.Ini
+Pannels\cartemission_tutorial.Ini
+Pannels\bandeau_blurk_bas.ini
+Pannels\bandeau_blurk_haut.ini
+Pannels\menumissionlost.ini
+Pannels\menumissionwin.ini
+Pannels\oui_non.ini
+Pannels\tips.Ini
+Pannels\quartdecercle.Ini
+Pannels\InfoPlayer.ini
+Pannels\GroupePH.Ini
+Pannels\GroupeBatiment.Ini
+Pannels\bandeau_commun.ini
+Pannels\bandeau_listebatiment.ini
+Pannels\bandeau.ini
+Pannels\bandeau_batiment.ini
+Pannels\bouton_minimap.ini
+Pannels\inventairePH.ini
+Pannels\construction.Ini
+Pannels\batiment_incubateur.ini
+Pannels\Batiment_Generateur.ini
+Pannels\Batiment_Cuisine.ini
+Pannels\Batiment_Dortoir.ini
+Pannels\Batiment_Ecole.ini
+Pannels\Batiment_Dynamo.ini
+Pannels\Batiment_infirmerie.ini
+Pannels\Batiment_prison.ini
+Pannels\batiment_manufacture.ini
+Pannels\Batiment_hangar.ini
+Pannels\batiment_inventeur.ini
+Pannels\batiment_grenier.ini
+Pannels\batiment_entrepot.ini
+Pannels\batiment_Stoc.ini
+Pannels\rollover.INI
+Pannels\campagne.ini
+Pannels\PresentationMission.Ini
+Pannels\menuingame.ini
+Pannels\popup_inventairePH.ini
+Pannels\SelectedGroupePH.Ini
+Pannels\fiche_perso.ini
+Pannels\info_ph.ini
+Pannels\vignette.ini
+Pannels\fiche_passager.ini
+Pannels\fiche_vehicule.ini
+Pannels\liste_fanions.ini
+Pannels\fanions.ini
+
+
+MCEDITOR.EXE
+* Use MC_OG.EXE for debug purposes
+* Draggable Windows ( + < | WS_THICKFRAME >  or < DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME >)
+* Credits. OK button <92, 32, 30, 11 > to <92, 42, 30, 11 >
+* Edits to Dialog: 103, 106, 130 (major), 131 (major), 132 (major), 133 (major), 134 major
