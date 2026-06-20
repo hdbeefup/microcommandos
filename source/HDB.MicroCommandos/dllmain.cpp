@@ -427,6 +427,23 @@ if (true){
     injector::WriteMemory(0x64B848, ResY, true); // 600
     injector::WriteMemory(0x64BB22, ResY, true); // 600
 
+/* Tooltip / rollover box screen-bounds clamp (FLOAT based -> not caught by the
+   integer res patches above; this is why tooltips stuck at the old 800x600 edge).
+   Reversed @ 0x0064cf** : the engine positions a text box at the mouse, then
+   clamps it on screen:
+       if (X + w > 800.0f @0x6bedf8) X = 800.0f - w;   // right edge
+       if (Y + h > 600.0f @0x6be470) Y = 600.0f - h;   // bottom edge
+   - 800.0f @0x6bedf8 is used ONLY by this clamp -> overwrite the const directly.
+   - 600.0f @0x6be470 is SHARED with ~60 unrelated FSUB math ops -> do NOT edit
+     it globally; instead repoint just this clamp's two operands (FCOMP @0x64cfc4
+     and FLD @0x64cfd1, disp32 at +2) to a DLL-resident ResY float.            */
+    injector::WriteMemory<float>(0x6bedf8, (float)ResX, true); // X clamp: 800.0 -> ResX
+
+    static float fTooltipResY;
+    fTooltipResY = (float)ResY;                                 // Y clamp height, ResY
+    injector::WriteMemory<DWORD>(0x64cfc6, (DWORD)(uintptr_t)&fTooltipResY, true); // FCOMP operand
+    injector::WriteMemory<DWORD>(0x64cfd3, (DWORD)(uintptr_t)&fTooltipResY, true); // FLD operand
+
 }
 
 }
