@@ -11,6 +11,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include <algorithm>
+#include <string> // MSVC 14.50+ STL no longer pulls <string> in transitively
 
 #if PATTERNS_USE_HINTS
 #include <map>
@@ -62,7 +63,7 @@ namespace hook
     }
 #endif
 
-    static void TransformPattern(std::string_view pattern, std::basic_string<uint8_t>& data, std::basic_string<uint8_t>& mask)
+    static void TransformPattern(std::string_view pattern, std::vector<uint8_t>& data, std::vector<uint8_t>& mask)
     {
         uint8_t tempDigit = 0;
         bool tempFlag = false;
@@ -212,11 +213,15 @@ namespace hook
         const uint8_t* pattern = m_bytes.data();
         const uint8_t* mask = m_mask.data();
         const size_t maskSize = m_mask.size();
-        const size_t lastWild = m_mask.find_last_not_of(uint8_t(0xFF));
+        size_t lastWild = SIZE_MAX; // index of last non-0xFF mask byte (std::vector has no find_last_not_of)
+        for (size_t k = maskSize; k-- > 0; )
+        {
+            if (m_mask[k] != 0xFF) { lastWild = k; break; }
+        }
 
         ptrdiff_t Last[256];
 
-        std::fill(std::begin(Last), std::end(Last), lastWild == std::string::npos ? -1 : static_cast<ptrdiff_t>(lastWild));
+        std::fill(std::begin(Last), std::end(Last), lastWild == SIZE_MAX ? -1 : static_cast<ptrdiff_t>(lastWild));
 
         for (ptrdiff_t i = 0; i < static_cast<ptrdiff_t>(maskSize); ++i)
         {

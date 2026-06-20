@@ -66,8 +66,8 @@ namespace hook
     class pattern
     {
     private:
-        std::basic_string<uint8_t> m_bytes;
-        std::basic_string<uint8_t> m_mask;
+        std::vector<uint8_t> m_bytes;
+        std::vector<uint8_t> m_mask;
 
 #if PATTERNS_USE_HINTS
         uint64_t m_hash;
