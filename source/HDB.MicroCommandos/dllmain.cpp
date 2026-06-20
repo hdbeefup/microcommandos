@@ -375,57 +375,57 @@ if (true){
     injector::WriteMemory(0x60962F, ResX, true); // 800
     injector::WriteMemory(0x609637, ResY, true); // 600
 
-// [UNKNOWN] Button acceptance region (test)
+// VRAM-tier resolution cap (FUN_004013d0): clamps requested res to 800x600 on
+// low-VRAM tiers (`if (800 < width){ width=800; height=600; }`). Raising the cap
+// to ResX/ResY. NOTE: the top VRAM tier (>=56MB) has no clamp, so modern GPUs
+// bypass this anyway -- harmless + correct.
     injector::WriteMemory(0x401444, ResX, true); // 800
     injector::WriteMemory(0x401455, ResY, true); // 600
-
-// [UNKNOWN] 
     injector::WriteMemory(0x401478, ResX, true); // 800
     injector::WriteMemory(0x40148b, ResY, true); // 600
 
+// Editor/debug child-window layout (FUN_0040dbe0, gated by editor flag
+// [DAT_00703378+0x2a420]==1): SetWindowPos coords for tool windows 0x84..0x90.
+// INERT during normal fullscreen gameplay; only affects the in-engine editor.
     injector::WriteMemory(0x40dc26, ResX, true); // 800 window pos
 
-    injector::WriteMemory(0x48fd4e, ResX, true); // 800 0x320 2003
+    // REMOVED three coincidental 0x320 (=800) sites that are NOT resolution values:
+    //   0x48fd4e / 0x48fdb9 : FUN_0048fd40 allocates a fixed 800-byte struct
+    //       (0x20 header + 0xc0 dwords); 0x320 is sizeof(struct). The 0xc0 copy
+    //       count is hardcoded, so it can't scale. ResX<800 -> heap overflow.
+    //   0x678d64 : `SUB ESP,0x320` in the MSVC CRT error handler (FUN_00678d5f,
+    //       "Microsoft Visual C++ Runtime Library"); 0x320 is its stack frame
+    //       (local buffers 260+540=800). ResX<800 -> stack corruption.
+    // All were harmless only because widescreen ResX is normally >=800.
 
-    injector::WriteMemory(0x48fdb9, ResX, true); // 800 0x320 2003
-    injector::WriteMemory(0x678d64, ResX, true); // 800 0x320 2003
-
-    // [UNKNOWN] 12c (300) 320 (800)
+    // (continued) editor/debug child-window layout (FUN_0040dbe0) -- inert in game
     injector::WriteMemory(0x40dd49, ResX, true); // 800
     injector::WriteMemory(0x40dd44, ResY, true); // 600
-
- // [UNKNOWN] Button acceptance region (test 2)
     injector::WriteMemory(0x40dc6f, ResX, true); // 800
     injector::WriteMemory(0x40dc74, ResY, true); // 600
-
-// [UNKNOWN] Button acceptance region (test 3)
     injector::WriteMemory(0x40dcfa, ResX, true); // 800
     injector::WriteMemory(0x40dcff, ResY, true); // 600
-
-// [UNKNOWN] Button acceptance region (test 4)
     injector::WriteMemory(0x40de13, ResX, true); // 800
     injector::WriteMemory(0x40de18, ResY, true); // 600
-
-// [UNKNOWN] Button acceptance region (test 5)
     injector::WriteMemory(0x40de58, ResX, true); // 800
     injector::WriteMemory(0x40de5d, ResY, true); // 600
 
-// [UNKNOWN] Button acceptance region (test 6) ! reversed in IDA. Nice over here ;)
+// Main game window size (FUN_00412b50): default SetWindowPos extent + the
+// DAT_00704b5c/DAT_00704b60 backbuffer dims (800x600 -> ResX/ResY). GENUINE.
     injector::WriteMemory(0x412b80, ResX, true); // 800
     injector::WriteMemory(0x412b7b, ResY, true); // 600
-
-// [UNKNOWN] Button acceptance region (test 7)
     injector::WriteMemory(0x412cfd, ResX, true); // 800
     injector::WriteMemory(0x412d02, ResY, true); // 600
 
 /* after a long break... NEW CODE!*/
-    injector::WriteMemory(0x4014cd, ResY, true); // 600
-    injector::WriteMemory(0x40dcbb, ResY, true); // 600
-    injector::WriteMemory(0x40dd8e, ResY, true); // 600
-    injector::WriteMemory(0x40ddd4, ResY, true); // 600
-    injector::WriteMemory(0x4f4df4, ResY, true); // 600
-    injector::WriteMemory(0x64B848, ResY, true); // 600
-    injector::WriteMemory(0x64BB22, ResY, true); // 600
+    injector::WriteMemory(0x4014cd, ResY, true); // 600 -> VRAM-tier res cap (FUN_004013d0)
+    injector::WriteMemory(0x40dcbb, ResY, true); // 600 -> editor child-window layout (FUN_0040dbe0)
+    injector::WriteMemory(0x40dd8e, ResY, true); // 600 -> editor child-window layout
+    injector::WriteMemory(0x40ddd4, ResY, true); // 600 -> editor child-window layout
+    // REMOVED 0x4f4df4 / 0x64B848 / 0x64BB22: these "600"s are SOURCE LINE NUMBERS
+    // passed to the debug allocator FUN_00420350(size,...,file,line) -- e.g.
+    // FUN_00420350(0x88,1,0x1b,1,"...mcLib\\src\\overlay...",600). Not resolution;
+    // patching them only corrupted leak-tracking metadata. (See audit notes.)
 
 /* Tooltip / rollover box screen-bounds clamp (FLOAT based -> not caught by the
    integer res patches above; this is why tooltips stuck at the old 800x600 edge).
