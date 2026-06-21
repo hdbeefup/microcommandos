@@ -2,6 +2,60 @@
 
 bool bHACKMEfixes;
 
+/* ---- Middle-mouse camera rotation -----------------------------------------------
+   Hooks the per-frame input handler FUN_004135a0 (single call site 0x00414771).
+   When Ctrl is held that handler ROTATES the camera (vtable +0x20 yaw-, +0x24 yaw+)
+   reading the DirectInput keyboard buffer (ptr @0x00703798); otherwise it pans.
+   While MMB is held we:
+     (1) lock the cursor to its press point (recenter each frame) so it never hits
+         the screen edge -- this also keeps the game's edge-scroll quiet; and
+     (2) forge Ctrl+Left/Right into the live key buffer, scaling the per-frame
+         rotate step (float @0x006d88e8, default 0.02 rad) by mouse speed so fast
+         drags rotate faster (proportional feel).
+   mchd.ini [MAIN]: MmbRotate (1), MmbRotateDeadzone (2),
+   MmbRotateSensitivity (0.15), MmbRotateMaxFactor (8.0). */
+typedef void (__cdecl* tCamInput)();
+static tCamInput oCamInput      = nullptr;
+static bool      bMmbRotate      = true;
+static int       iMmbDeadzone    = 2;
+static float     fMmbSens        = 0.15f;
+static float     fMmbMaxFactor   = 8.0f;
+
+static float* const pCamStep = (float*)0x006d88e8;  // per-frame camera step passed to rotate/pan
+
+static void __cdecl CamInput_Hook()
+{
+    static bool  haveStep = false;
+    static float origStep = 0.02f;
+    static POINT anchor   = { 0, 0 };
+    static bool  dragging = false;
+    if (!haveStep) { origStep = *pCamStep; haveStep = true; }
+
+    bool scaled = false;
+    if (bMmbRotate && (GetAsyncKeyState(VK_MBUTTON) & 0x8000))
+    {
+        POINT p; GetCursorPos(&p);
+        if (!dragging) { anchor = p; dragging = true; }
+        LONG dx = p.x - anchor.x;
+        SetCursorPos(anchor.x, anchor.y);            // lock cursor to the press point
+
+        BYTE* kb = *(BYTE**)0x00703798;              // live DI keyboard state
+        if (kb && (dx < -iMmbDeadzone || dx > iMmbDeadzone))
+        {
+            float factor = (dx < 0 ? -dx : dx) * fMmbSens;
+            if (factor > fMmbMaxFactor) factor = fMmbMaxFactor;
+            *pCamStep = origStep * factor;           // speed-proportional rotation
+            scaled = true;
+            kb[0x1d] = 0x80;                          // DIK_LCONTROL -> rotate branch
+            kb[dx < 0 ? 0xcb : 0xcd] = 0x80;         // DIK_LEFT / DIK_RIGHT
+        }
+    }
+    else dragging = false;
+
+    if (oCamInput) oCamInput();
+    if (scaled) *pCamStep = origStep;                // restore (keep keyboard rotate normal)
+}
+
 void Init()
 {
 	
@@ -18,48 +72,46 @@ void Init()
     int ResX = iniReader.ReadInteger("MAIN", "ResX", 0);
     int ResY = iniReader.ReadInteger("MAIN", "ResY", 0);
     bHACKMEfixes = iniReader.ReadInteger("Patchworks", "HACKMEfixes", 1);
+    bMmbRotate    = iniReader.ReadInteger("MAIN", "MmbRotate", 1) != 0;
+    iMmbDeadzone  = iniReader.ReadInteger("MAIN", "MmbRotateDeadzone", 2);
+    fMmbSens      = iniReader.ReadFloat("MAIN", "MmbRotateSensitivity", 0.15f);
+    fMmbMaxFactor = iniReader.ReadFloat("MAIN", "MmbRotateMaxFactor", 8.0f);
 
     if (!ResX || !ResY)
         std::tie(ResX, ResY) = GetDesktopRes();
 
+    // Offset to center an 800x600-designed panel/root on the current resolution.
+    // (The old `X = ResX/4` only centers at 1600 wide; this is correct at any res.)
+    int centerX = (ResX - 800) / 2;
+    int centerY = (ResY - 600) / 2;
+
 /* GAME EXE SCREEN RES */
 
 /* GUI FILES BEEFUP */
-CIniReader iniWriter("..\\Pannels\\menuprincipal.ini");
-iniWriter.WriteInteger("MENUPRINCIPAL", "WIDTH", ResX );
-iniWriter.WriteInteger("MENUPRINCIPAL", "HEIGHT", ResY);
-
-iniWriter.WriteInteger("MAINMENU_LOGOMICROROOT", "X", ResX - 610);
-iniWriter.WriteInteger("MAINMENU_LOGOMICRO", "X", ResX - 570); //71
-iniWriter.WriteInteger("MAINMENU_LOGOMICRO2", "X", ResX - 314);
-
-if (ResY >= 768 && bHACKMEfixes) {  /* HACK ME*/
-iniWriter.WriteInteger("MAINMENU_LOGOMICROROOT", "X", -(((ResX * 76) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_LOGOMICRO", "X", -(((ResX * 54) / 100) - ResX) - 4); //71
-iniWriter.WriteInteger("MAINMENU_LOGOMICRO2", "X", -(((ResX * 39) / 100) - ResX));
-
-iniWriter.WriteInteger("MAINMENU_PRINCIPALE02", "X", -(((ResX * 68) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_PRINCIPALE03", "X", -(((ResX * 36) / 100) - ResX));
-
-iniWriter.WriteInteger("MAINMENU_PRINCIPALEROOT", "WIDTH", -(((ResX * 36) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_PRINCIPALEROOT", "HEIGHT", -(((ResY * 15) / 100) - ResY));
-
-iniWriter.WriteInteger("MAINMENU_NEWGAME_T", "X", -(((ResX * 60) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_NEWGAME", "X", -(((ResX * 66) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_REPLAY_T", "X", -(((ResX * 76) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_REPLAY", "X", -(((ResX * 83) / 100) - ResX));
-
-iniWriter.WriteInteger("MAINMENU_CONTINUE_T", "X", -(((ResX * 60) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_CONTINUE", "X", -(((ResX * 66) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_LOAD", "X", -(((ResX * 54) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_LOAD_T", "X", -(((ResX * 47) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_SELECTPLAYER_T", "X", -(((ResX * 38) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_SELECTPLAYER", "X", -(((ResX * 44) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_QUIT_T", "X", -(((ResX * 31) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_QUIT", "X", -(((ResX * 37) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_CREDITS_T", "X", -(((ResX * 26) / 100) - ResX));
-iniWriter.WriteInteger("MAINMENU_CREDITS", "X", -(((ResX * 29) / 100) - ResX));
-}
+CIniReader iniWriter("Pannels\\menuprincipal.ini"); // FIXED: was "..\\Pannels\\..." -> wrong dir, so the main menu was never actually updated
+// Center the whole 800x600 main-menu composition. Every menu element hangs off one
+// of three roots (logo / interface-art band / buttons+text), so offsetting just the
+// roots by (centerX, centerY) moves everything together and keeps the art aligned.
+// (Replaces the old per-element percentage "HACK", which distorted the cascade, and
+// the right-edge logo anchoring that never ran due to the path bug.)
+iniWriter.WriteInteger("MENUPRINCIPAL", "WIDTH", 800);
+iniWriter.WriteInteger("MENUPRINCIPAL", "HEIGHT", 600);
+iniWriter.WriteInteger("MENUPRINCIPAL", "X", centerX);              // buttons + text labels
+iniWriter.WriteInteger("MENUPRINCIPAL", "Y", centerY);
+iniWriter.WriteInteger("MAINMENU_PRINCIPALEROOT", "X", centerX);    // interface-art band (orig 0,0)
+iniWriter.WriteInteger("MAINMENU_PRINCIPALEROOT", "Y", centerY);
+iniWriter.WriteInteger("MAINMENU_LOGOMICROROOT", "X", 190 + centerX); // logo (orig X=190,Y=0)
+iniWriter.WriteInteger("MAINMENU_LOGOMICROROOT", "Y", centerY);
+// Keep "Current Player" label + value pinned to the screen top-left: cancel out the
+// centered MENUPRINCIPAL parent so they sit at absolute (10,33) / (150,33).
+iniWriter.WriteInteger("MAINMENU_PLAYERNAME_T", "X", 10 - centerX);   // orig 10,33
+iniWriter.WriteInteger("MAINMENU_PLAYERNAME_T", "Y", 33 - centerY);
+iniWriter.WriteInteger("MAINMENU_PLAYERNAME", "X", 150 - centerX);    // orig 150,33
+iniWriter.WriteInteger("MAINMENU_PLAYERNAME", "Y", 33 - centerY);
+// menu_interfaceprincipale01 is the decorative bar for the player header (not part
+// of the button arc, which is pieces 02/03). Pin it top-left with the player name.
+iniWriter.WriteInteger("MAINMENU_PRINCIPALE01", "X", 0 - centerX);    // -> absolute (0,3)
+iniWriter.WriteInteger("MAINMENU_PRINCIPALE01", "Y", 3 - centerY);
 
 iniWriter.SetIniPath("Pannels\\menucredits.ini");
 iniWriter.WriteInteger("MENUCREDITS", "WIDTH", ResX);
@@ -80,32 +132,23 @@ iniWriter.SetIniPath("Pannels\\oui_non.INI");
 iniWriter.WriteInteger("MENUINGAME_BLACK_YESNO", "WIDTH", ResX);
 iniWriter.WriteInteger("MENUINGAME_BLACK_YESNO", "HEIGHT", ResY);
 
+// MENU_OUI_NON is a full-screen modal container; its children are positioned
+// relative to it. Center the yes/no dialog by offsetting each child from its
+// ORIGINAL 800x600 position by (centerX, centerY). Replaces the old right-edge
+// anchoring + resolution-specific HACK block.
 iniWriter.WriteInteger("MENU_OUI_NON", "WIDTH", ResX);
 iniWriter.WriteInteger("MENU_OUI_NON", "HEIGHT", ResY);
 
-iniWriter.WriteInteger("LIST_MENU_OUI_NON_TEXT", "X", ResX - 485); //315
-iniWriter.WriteInteger("LIST_MENU_OUI_NON_TEXT", "Y", ResY - 330); //270
-iniWriter.WriteInteger("MENU_OUI_NON_GAUCHE", "X", ResX - 570); //230 MAINLY YES NO BG
-iniWriter.WriteInteger("MENU_OUI_NON_GAUCHE", "Y", ResY - 360); //240
-iniWriter.WriteInteger("MENU_OUI_NON_DROIT", "X", ResX - 314); //486 UI AND 2ND PART YES NO BG
-iniWriter.WriteInteger("MENU_OUI_NON_DROIT", "Y", ResY - 360); //240
-iniWriter.WriteInteger("MENU_NON", "X", ResX - 546); //254
-iniWriter.WriteInteger("MENU_NON", "Y", ResY - 195); //405
-iniWriter.WriteInteger("MENU_OUI", "X", ResX - 342); //458
-iniWriter.WriteInteger("MENU_OUI", "Y", ResY - 204); //396 
-
-if (ResY >= 1050 && bHACKMEfixes) { /* HACK ME*/
-    iniWriter.WriteInteger("LIST_MENU_OUI_NON_TEXT", "X", -(((ResX * 60.625) / 100) - ResX)); //315
-    iniWriter.WriteInteger("LIST_MENU_OUI_NON_TEXT", "Y", -(((ResY * 55) / 100) - ResY) - 14); //270
-    iniWriter.WriteInteger("MENU_OUI_NON_GAUCHE", "X", -(((ResX * 60.625) / 100) - ResX) - 80); //230
-    iniWriter.WriteInteger("MENU_OUI_NON_GAUCHE", "Y", -(((ResY * 60) / 100) - ResY)); //240
-    iniWriter.WriteInteger("MENU_OUI_NON_DROIT", "X", -(((ResX * 60.625) / 100) - ResX) + 176); //486
-    iniWriter.WriteInteger("MENU_OUI_NON_DROIT", "Y", -(((ResY * 60) / 100) - ResY)); //240
-    iniWriter.WriteInteger("MENU_NON", "X", -(((ResX * 60.625) / 100) - ResX) - 56); //254
-    iniWriter.WriteInteger("MENU_NON", "Y", -(((ResY * 32.5) / 100) - ResY) - 123); //405
-    iniWriter.WriteInteger("MENU_OUI", "X", -(((ResX * 60.625) / 100) - ResX) + 175 - 27); //458
-    iniWriter.WriteInteger("MENU_OUI", "Y", -(((ResY * 34) / 100) - ResY) - 117); //396
-}
+iniWriter.WriteInteger("LIST_MENU_OUI_NON_TEXT", "X", 315 + centerX);
+iniWriter.WriteInteger("LIST_MENU_OUI_NON_TEXT", "Y", 270 + centerY);
+iniWriter.WriteInteger("MENU_OUI_NON_GAUCHE", "X", 230 + centerX); // YES/NO bg left
+iniWriter.WriteInteger("MENU_OUI_NON_GAUCHE", "Y", 240 + centerY);
+iniWriter.WriteInteger("MENU_OUI_NON_DROIT", "X", 486 + centerX);  // YES/NO bg right
+iniWriter.WriteInteger("MENU_OUI_NON_DROIT", "Y", 240 + centerY);
+iniWriter.WriteInteger("MENU_NON", "X", 254 + centerX);
+iniWriter.WriteInteger("MENU_NON", "Y", 405 + centerY);
+iniWriter.WriteInteger("MENU_OUI", "X", 458 + centerX);
+iniWriter.WriteInteger("MENU_OUI", "Y", 396 + centerY);
 
 iniWriter.SetIniPath("Pannels\\BANDEAU.INI");
 iniWriter.WriteInteger("cadre_noms", "Y", ResY-143);   // 24 /// name part    
@@ -244,16 +287,16 @@ iniWriter.WriteInteger("bandeau_batiment", "Y", ResY - 155); //445
 
 
 iniWriter.SetIniPath("Pannels\\tips.ini");
-iniWriter.WriteInteger("MENU_INFO", "X", ResX/4);
-iniWriter.WriteInteger("MENU_INFO", "Y", ResY/4); 
+iniWriter.WriteInteger("MENU_INFO", "X", centerX); // mission objectives panel - center the 800x600 root
+iniWriter.WriteInteger("MENU_INFO", "Y", centerY);
 iniWriter.WriteInteger("MENU_INFO_TIPS", "WIDTH", ResX);
 iniWriter.WriteInteger("MENU_INFO_TIPS", "HEIGHT", ResY); 
 iniWriter.WriteInteger("MENUINGAME_BLACK_TIPS", "WIDTH", ResX);
 iniWriter.WriteInteger("MENUINGAME_BLACK_TIPS", "HEIGHT", ResY); 
 
 iniWriter.SetIniPath("Pannels\\bandeau_blurk_bas.ini"); // talking head when mission selected
-iniWriter.WriteInteger("MENU_BLURK_BAS", "X", ResX/4);
-iniWriter.WriteInteger("MENU_BLURK_BAS", "Y", ResY/4); 
+iniWriter.WriteInteger("MENU_BLURK_BAS", "X", centerX); // talking-head panel - center 800x600 root
+iniWriter.WriteInteger("MENU_BLURK_BAS", "Y", centerY);
 //iniWriter.WriteInteger("MENU_BLURK_VALIDER_", "X", ResX-55); //745
 //iniWriter.WriteInteger("MENU_BLURK_VALIDER_", "Y", ResY-370); //230
 //iniWriter.WriteInteger("LIST_TEXTMISSION_BLURKBAS_T", "X", ResX-530); //270
@@ -266,8 +309,8 @@ iniWriter.WriteInteger("MENU_BLURK_HAUT", "WIDTH", ResX);
 iniWriter.WriteInteger("MENU_BLURK_HAUT", "HEIGHT", ResY); 
 
 iniWriter.SetIniPath("Pannels\\menumissionbrief.ini"); // after talking head when mission selected
-iniWriter.WriteInteger("MENUMISSIONBRIEF", "X", ResX / 4);
-iniWriter.WriteInteger("MENUMISSIONBRIEF", "Y", ResY / 4);
+iniWriter.WriteInteger("MENUMISSIONBRIEF", "X", centerX); // mission brief - center 800x600 root
+iniWriter.WriteInteger("MENUMISSIONBRIEF", "Y", centerY);
 iniWriter.WriteInteger("MENUJOUEURS", "WIDTH", ResX);
 iniWriter.WriteInteger("MENUJOUEURS", "HEIGHT", ResY);
 
@@ -443,6 +486,11 @@ if (true){
     fTooltipResY = (float)ResY;                                 // Y clamp height, ResY
     injector::WriteMemory<DWORD>(0x64cfc6, (DWORD)(uintptr_t)&fTooltipResY, true); // FCOMP operand
     injector::WriteMemory<DWORD>(0x64cfd3, (DWORD)(uintptr_t)&fTooltipResY, true); // FLD operand
+
+    // Middle-mouse camera rotation: redirect the input handler's single call site
+    // (CALL @0x00414771 -> FUN_004135a0). MakeCALL returns the original target.
+    if (bMmbRotate)
+        oCamInput = (tCamInput)injector::MakeCALL(0x00414771, CamInput_Hook, true).get();
 
 }
 
