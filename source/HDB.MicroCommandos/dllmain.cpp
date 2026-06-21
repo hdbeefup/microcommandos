@@ -1,6 +1,16 @@
 #include "stdafx.h"
+#include <fstream>
 
 bool bHACKMEfixes;
+
+// Simple Release-safe file log (the mod's spdlog is _DEBUG-only). Writes
+// <gamedir>\HDB.MicroCommandos.log so cheats/diagnostics are checkable without a debugger.
+static void LogLine(const std::string& s)
+{
+    static const std::string path = GetExeModulePath<std::string>() + "HDB.MicroCommandos.log";
+    std::ofstream f(path, std::ios::app);
+    if (f) f << s << std::endl;
+}
 
 /* ---- Middle-mouse camera rotation -----------------------------------------------
    Hooks the per-frame input handler FUN_004135a0 (single call site 0x00414771).
@@ -17,6 +27,10 @@ bool bHACKMEfixes;
 typedef void (__cdecl* tCamInput)();
 static tCamInput oCamInput      = nullptr;
 static bool      bMmbRotate      = true;
+static bool      bCheatVictory   = false;   // F10 = show victory screen (testing)
+// cInterface_VictoryEnd::SetVisibleAndValid(bool) @0x612f00 (__thiscall); the global
+// instance pointer is at 0x00704cc8. Calling with true shows the victory UI.
+typedef void (__thiscall* tVictoryShow)(void* self, bool show);
 static int       iMmbDeadzone    = 2;
 static float     fMmbSens        = 0.15f;
 static float     fMmbMaxFactor   = 8.0f;
@@ -52,6 +66,23 @@ static void __cdecl CamInput_Hook()
     }
     else dragging = false;
 
+    if (bCheatVictory) {                             // F9 -> show victory screen
+        // The game's DI keyboard buffer is filtered to keys it uses (F9 never appears),
+        // so try GetAsyncKeyState too (works for MMB, likely works for F9). Trigger on
+        // either; log which fired so we know the right input source going forward.
+        static bool prev = false;
+        bool gaks = (GetAsyncKeyState(VK_F9) & 0x8000) != 0;
+        BYTE* kb = *(BYTE**)0x00703798;
+        bool dik = (kb != nullptr) && (kb[0x43] & 0x80) != 0;
+        bool k = gaks || dik;
+        if (k && !prev) {
+            void* vic = *(void**)0x00704cc8;
+            LogLine(format("[HDB] F9 victory (gaks=%d dik=%d): vic=%p", (int)gaks, (int)dik, vic));
+            if (vic) ((tVictoryShow)0x00612f00)(vic, true);
+        }
+        prev = k;
+    }
+
     if (oCamInput) oCamInput();
     if (scaled) *pCamStep = origStep;                // restore (keep keyboard rotate normal)
 }
@@ -76,6 +107,7 @@ void Init()
     iMmbDeadzone  = iniReader.ReadInteger("MAIN", "MmbRotateDeadzone", 2);
     fMmbSens      = iniReader.ReadFloat("MAIN", "MmbRotateSensitivity", 0.15f);
     fMmbMaxFactor = iniReader.ReadFloat("MAIN", "MmbRotateMaxFactor", 8.0f);
+    bCheatVictory = iniReader.ReadInteger("Patchworks", "CheatVictory", 0) != 0; // F9 -> victory screen
 
     if (!ResX || !ResY)
         std::tie(ResX, ResY) = GetDesktopRes();
@@ -84,6 +116,9 @@ void Init()
     // (The old `X = ResX/4` only centers at 1600 wide; this is correct at any res.)
     int centerX = (ResX - 800) / 2;
     int centerY = (ResY - 600) / 2;
+    LogLine(format("[HDB] Init %dx%d center(%d,%d) Mmb=%d CheatVictory=%d HACKME=%d",
+                   ResX, ResY, centerX, centerY,
+                   (int)bMmbRotate, (int)bCheatVictory, (int)bHACKMEfixes));
 
 /* GAME EXE SCREEN RES */
 
@@ -489,7 +524,7 @@ if (true){
 
     // Middle-mouse camera rotation: redirect the input handler's single call site
     // (CALL @0x00414771 -> FUN_004135a0). MakeCALL returns the original target.
-    if (bMmbRotate)
+    if (bMmbRotate || bCheatVictory)
         oCamInput = (tCamInput)injector::MakeCALL(0x00414771, CamInput_Hook, true).get();
 
     /* Victory talking-head 3D viewport (cInterface_VictoryEnd::CreateViewports @0x614860).
