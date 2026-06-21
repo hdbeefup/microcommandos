@@ -492,6 +492,23 @@ if (true){
     if (bMmbRotate)
         oCamInput = (tCamInput)injector::MakeCALL(0x00414771, CamInput_Hook, true).get();
 
+    /* Victory talking-head 3D viewport (cInterface_VictoryEnd::CreateViewports @0x614860).
+       Four hardcoded 800x600-relative spots for the character render -> they stay top-left
+       while the victory device is centered. Shift each by (centerX, centerY) so the head
+       tracks the centered device. Coords are PUSH-imm32 floats into FUN_00403940(x,y,w,h);
+       operand = instruction+1. If alignment is off, the device uses a different offset --
+       tune these 8 addresses (or set [Patchworks] HACKMEfixes=0 to disable). */
+    if (bHACKMEfixes) {
+        injector::WriteMemory<float>(0x6148e9, 122.0f + centerX, true); // A x
+        injector::WriteMemory<float>(0x6148e4,  85.0f + centerY, true); // A y
+        injector::WriteMemory<float>(0x61498a,  30.0f + centerX, true); // B x
+        injector::WriteMemory<float>(0x614985,  30.0f + centerY, true); // B y
+        injector::WriteMemory<float>(0x614a1c, 575.0f + centerX, true); // C x
+        injector::WriteMemory<float>(0x614a17, 490.0f + centerY, true); // C y
+        injector::WriteMemory<float>(0x614b9a, 122.0f + centerX, true); // D x
+        injector::WriteMemory<float>(0x614b95,  85.0f + centerY, true); // D y
+    }
+
 }
 
 }
