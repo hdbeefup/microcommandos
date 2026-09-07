@@ -167,12 +167,30 @@ iniWriter.SetIniPath("Pannels\\oui_non.INI");
 iniWriter.WriteInteger("MENUINGAME_BLACK_YESNO", "WIDTH", ResX);
 iniWriter.WriteInteger("MENUINGAME_BLACK_YESNO", "HEIGHT", ResY);
 
-// MENU_OUI_NON is a full-screen modal container; its children are positioned
-// relative to it. Center the yes/no dialog by offsetting each child from its
-// ORIGINAL 800x600 position by (centerX, centerY). Replaces the old right-edge
-// anchoring + resolution-specific HACK block.
-iniWriter.WriteInteger("MENU_OUI_NON", "WIDTH", ResX);
-iniWriter.WriteInteger("MENU_OUI_NON", "HEIGHT", ResY);
+// MENU_OUI_NON is the yes/no modal container; its children are positioned relative to
+// it. Center the dialog by offsetting each child from its ORIGINAL 800x600 position by
+// (centerX, centerY). Replaces the old right-edge anchoring + resolution-specific HACK.
+//
+// DO NOT RESIZE THIS CONTAINER. It used to be written to ResX/ResY, and that single
+// pair of lines was what pushed the whole dialog off screen.
+//
+// The game centres a panel by converting (800 - ResX)/2 to float, and it does the
+// conversion UNSIGNED: `fild qword` over a 32-bit value whose high dword was zeroed
+// (cInterfaceYesNoBox::SetVisibleAndValid, 00614c80). While a panel fits inside 800x600
+// the offset is >= 0 and nothing shows. Resize the panel to the screen and the offset
+// goes negative -- at 1920 wide, -560 -- which read as unsigned is 4294966784. Every
+// child inherits the container's position, so the dialog lands ~4 billion pixels away.
+//
+// MEASURED in the recompilation (microcommandos-decomp/recomp, scratchpad/click.py
+// reports the quit widget tree). With WIDTH/HEIGHT written:
+//     ancestor x=4294966784.00  raw 4f7ffffe      LIST x=4294967808.00
+// With them left alone:
+//     ancestor x=0.00           raw 00000000      LIST x=875.00 y=510.00
+// and 875 = 315 + centerX(560), 510 = 270 + centerY(240) -- exactly what the child
+// offsets below already intend. The children were always right; the resize was the bug.
+//
+// The full-screen dimming behind the dialog is MENUINGAME_BLACK_YESNO, written above, so
+// nothing here needs the container to cover the screen.
 
 iniWriter.WriteInteger("LIST_MENU_OUI_NON_TEXT", "X", 315 + centerX);
 iniWriter.WriteInteger("LIST_MENU_OUI_NON_TEXT", "Y", 270 + centerY);
