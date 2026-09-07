@@ -159,6 +159,31 @@ iniWriter.SetIniPath("Pannels\\bouton_minimap.ini"); // In game TOP UI
 iniWriter.WriteInteger("MINIMAP_ROOT", "X", ResX - 80); // 10  720
 iniWriter.WriteInteger("NAVIGATION", "X", ResX - 230);  // 29 570
 
+// ---------------------------------------------------------------------------------
+// THE SAME UNDERFLOW MAY AFFECT OTHER PANELS RESIZED BELOW.  UNVERIFIED -- see the
+// MENU_OUI_NON note further down for the confirmed case and how it was measured.
+//
+// The trap: a panel wider than 800 makes the game's centring offset (800 - W)/2
+// negative, and the game converts that to float UNSIGNED, so the panel and every child
+// jump to ~4.29e9.  It only bites for panels a class actually CENTRES.
+//
+// microcommandos-decomp/recomp/scripts/audit_signed_fild.py finds that exact conversion
+// shape.  Besides cInterfaceYesNoBox (the fixed case) it flags:
+//     006109d0  cInterface_MenuInGame::SetVisibleAndValid
+//     00613820  cInterface_VictoryEnd::Init
+//     00641570  cInterface_MenuOptions::SetVisibleAndValid
+// so VICTORY and the MENUINGAME_BLACK* panels resized here are the obvious candidates.
+//
+// LEFT ALONE ON PURPOSE.  Two reasons, both about not guessing:
+//   1. Panel names do not appear anywhere in the executable -- they are looked up from
+//      these ini files at runtime -- so which class centres which panel cannot be
+//      established statically the way it could from a symbol reference.
+//   2. These screens only exist during a mission, far past what the recompilation
+//      currently boots to, so there is no way to measure the before/after that settled
+//      MENU_OUI_NON.  A dimming backdrop like MENUINGAME_BLACK is also *supposed* to
+//      cover the screen, so removing its resize could be a regression rather than a fix.
+// Check each against a running game before changing it.
+// ---------------------------------------------------------------------------------
 iniWriter.SetIniPath("Pannels\\menuingame.Ini");
 iniWriter.WriteInteger("MENUINGAME_BLACK", "WIDTH", ResX);
 iniWriter.WriteInteger("MENUINGAME_BLACK", "HEIGHT", ResY);
