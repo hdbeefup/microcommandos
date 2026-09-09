@@ -407,8 +407,19 @@ iniWriter.WriteInteger("ROOT_CAMPAGNE", "WIDTH", ResX);
 iniWriter.WriteInteger("ROOT_CAMPAGNE", "HEIGHT", ResY);
 
 iniWriter.SetIniPath("Pannels\\menuselectmission.ini");
-iniWriter.WriteInteger("ROOT_CAMPAGNE", "X", ResX);
-iniWriter.WriteInteger("ROOT_CAMPAGNE", "Y", ResY);
+// The mission map. This block used to be a copy of the campagne.ini block above:
+// it wrote ROOT_CAMPAGNE, which is campagne.ini's root and does NOT exist in this
+// file, so WriteInteger APPENDED a junk "[ROOT_CAMPAGNE] X=1920 Y=1080" section that
+// nothing can instantiate (no TYPE, no PARENT), and X/Y were the previous block's
+// WIDTH/HEIGHT values -- which would have pushed a panel off the bottom-right corner
+// anyway. The real root, MENUSELECTMISSION, was left at its authored X=0 Y=0 800x600,
+// so the whole mission map rendered pinned to the TOP-LEFT of a 1920x1080 frame with
+// the 3D scene showing around it.
+// It is an 800x600 composition like MENUPRINCIPAL and MENUMISSIONBRIEF, so it gets the
+// same treatment they do: keep the size, centre the root. At 1920x1080 that puts it at
+// (560,240) -- the same place MENUMISSIONBRIEF already sits, which is the cross-check.
+iniWriter.WriteInteger("MENUSELECTMISSION", "X", centerX);
+iniWriter.WriteInteger("MENUSELECTMISSION", "Y", centerY);
 
 iniWriter.SetIniPath("Pannels\\info_bloc.ini");
 iniWriter.WriteInteger("info_bloc", "Y", ResY-98);
