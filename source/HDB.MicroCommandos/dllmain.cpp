@@ -180,11 +180,16 @@ iniWriter.WriteInteger("NAVIGATION", "X", ResX - 230);  // 29 570
 //      CHARGEMENT_ECRAN, MENU_INFO_TIPS and VICTORY are not in the executable AT ALL, so
 //      nothing looks them up by name and nothing centres them.
 //
-// Still derived from the binary, not from a running game.  What is NOT covered: two
-// flagged functions are generic rather than per-panel -- moWidgetManager::OnDraw (0064cde0)
-// and moWidgetEditText::OnDraw (00655c00).  They are draw-time conversions, not the
-// container-offset shape, so they cannot cause THIS defect; they have not been examined
-// for one of their own.
+//   3. The two generic flagged functions were read as well -- moWidgetManager::OnDraw
+//      (0064cde0) and moWidgetEditText::OnDraw (00655c00), which run per widget rather
+//      than centring a panel.  They carry the same shape and it is harmless there: every
+//      value they convert is non-negative by construction (a tagSIZE from GetTextExtent,
+//      the font-height getters, the engine's viewport dimensions).  One of them stores the
+//      real high dword and zeroes it on the next instruction.
+//
+// So the shape is widespread and mostly harmless; the only place it meets a value that can
+// go negative is a container centring offset.  Still derived from the binary, not from a
+// running game.
 // ---------------------------------------------------------------------------------
 iniWriter.SetIniPath("Pannels\\menuingame.Ini");
 iniWriter.WriteInteger("MENUINGAME_BLACK", "WIDTH", ResX);
