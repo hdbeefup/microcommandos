@@ -160,29 +160,31 @@ iniWriter.WriteInteger("MINIMAP_ROOT", "X", ResX - 80); // 10  720
 iniWriter.WriteInteger("NAVIGATION", "X", ResX - 230);  // 29 570
 
 // ---------------------------------------------------------------------------------
-// THE SAME UNDERFLOW MAY AFFECT OTHER PANELS RESIZED BELOW.  UNVERIFIED -- see the
-// MENU_OUI_NON note further down for the confirmed case and how it was measured.
+// CHECKED, 2026-09-10: NO PANEL RESIZED IN THIS FILE SITS ON THE MENU_OUI_NON UNDERFLOW.
+// The MENU_OUI_NON fix further down was the whole of it.  Full working in
+// microcommandos-decomp/FINDINGS.md; the two reasons this was previously left open have
+// both been resolved, and one of them was simply wrong:
 //
-// The trap: a panel wider than 800 makes the game's centring offset (800 - W)/2
-// negative, and the game converts that to float UNSIGNED, so the panel and every child
-// jump to ~4.29e9.  It only bites for panels a class actually CENTRES.
+//   1. "Panel names do not appear anywhere in the executable" -- THEY DO, in .data, and
+//      they are referenced by the Init of the very classes audit_signed_fild flags.  So
+//      the class-to-panel binding is establishable statically: resolve the reference, then
+//      follow the widget handle to the field SetVisibleAndValid centres.  Each of these
+//      classes keeps that widget in [this+4] and centres exactly that one.
 //
-// microcommandos-decomp/recomp/scripts/audit_signed_fild.py finds that exact conversion
-// shape.  Besides cInterfaceYesNoBox (the fixed case) it flags:
-//     006109d0  cInterface_MenuInGame::SetVisibleAndValid
-//     00613820  cInterface_VictoryEnd::Init
-//     00641570  cInterface_MenuOptions::SetVisibleAndValid
-// so VICTORY and the MENUINGAME_BLACK* panels resized here are the obvious candidates.
+//   2. Every panel written to ResX/ResY below was then crossed against the audit's full
+//      60-function list.  None of the owning classes does the signed conversion, with two
+//      apparent exceptions that are not exceptions:
+//        MENUINGAME_BLACK       cInterface_MenuInGame centres MENUINGAME, not this
+//        MENUINGAME_BLACK_YESNO cInterfaceYesNoBox centres MENU_OUI_NON, not this
+//      -- which is also why resizing the YESNO backdrop has always been safe.
+//      CHARGEMENT_ECRAN, MENU_INFO_TIPS and VICTORY are not in the executable AT ALL, so
+//      nothing looks them up by name and nothing centres them.
 //
-// LEFT ALONE ON PURPOSE.  Two reasons, both about not guessing:
-//   1. Panel names do not appear anywhere in the executable -- they are looked up from
-//      these ini files at runtime -- so which class centres which panel cannot be
-//      established statically the way it could from a symbol reference.
-//   2. These screens only exist during a mission, far past what the recompilation
-//      currently boots to, so there is no way to measure the before/after that settled
-//      MENU_OUI_NON.  A dimming backdrop like MENUINGAME_BLACK is also *supposed* to
-//      cover the screen, so removing its resize could be a regression rather than a fix.
-// Check each against a running game before changing it.
+// Still derived from the binary, not from a running game.  What is NOT covered: two
+// flagged functions are generic rather than per-panel -- moWidgetManager::OnDraw (0064cde0)
+// and moWidgetEditText::OnDraw (00655c00).  They are draw-time conversions, not the
+// container-offset shape, so they cannot cause THIS defect; they have not been examined
+// for one of their own.
 // ---------------------------------------------------------------------------------
 iniWriter.SetIniPath("Pannels\\menuingame.Ini");
 iniWriter.WriteInteger("MENUINGAME_BLACK", "WIDTH", ResX);
